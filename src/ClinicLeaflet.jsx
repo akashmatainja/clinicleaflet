@@ -138,7 +138,7 @@ export default function ClinicLeaflet() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [currentId, setCurrentId] = useState(() => window.location.pathname.slice(1).split('/')[2]);
+  const [currentId, setCurrentId] = useState(() => new URLSearchParams(window.location.search).get("id"));
   const [now, setNow] = useState(() => new Date());
   const [scrolled, setScrolled] = useState(false);
   const rosterRef = useRef(null);
@@ -148,7 +148,7 @@ export default function ClinicLeaflet() {
   // Poll for URL changes
   useEffect(() => {
     const interval = setInterval(() => {
-      const pathId = window.location.pathname.slice(1).split('/')[2];
+      const pathId = new URLSearchParams(window.location.search).get("id");
       if (pathId !== currentId) {
         setCurrentId(pathId);
       }
