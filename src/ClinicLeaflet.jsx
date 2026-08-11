@@ -303,7 +303,7 @@ export default function ClinicLeaflet() {
         {/* ═══ Universal Loader ═══ */}
         {loading && (
           <div className="universal-loader">
-            <div className="spinner"></div>
+            <div className="shimmer"></div>
             <p>Loading clinic data...</p>
           </div>
         )}
@@ -527,7 +527,10 @@ function DoctorCard({ doc, today, nowMins, index, catImage }) {
             <CatIcon name={doc.category} src={catImage} size="xs" />{doc.category}
           </p>
           {degrees.length > 0 && <p className="degrees">{degrees.join(" · ")}</p>}
+          {doc.hospital_name && <p className="hospital-name">{doc.hospital_name}</p>}
           {doc.experience ? <p className="exp mono">{doc.experience} in practice</p> : null}
+          {doc.additionalText_1 && <p className="additional-text additional-text--bold">{doc.additionalText_1}</p>}
+          {doc.additionalText_2 && <p className="additional-text">{doc.additionalText_2}</p>}
         </div>
         {sittingNow && <span className="tag-live">Now</span>}
       </div>
@@ -672,9 +675,9 @@ body{margin:0;padding:0;}
 /* ---------- universal loader ---------- */
 .universal-loader{display:flex;flex-direction:column;align-items:center;justify-content:center;
   padding:80px 22px;text-align:center;}
-.spinner{width:48px;height:48px;border:4px solid var(--brand-soft);border-top-color:var(--brand-deep);
-  border-radius:50%;animation:spin 1s linear infinite;margin-bottom:16px;}
-@keyframes spin{to{transform:rotate(360deg);}}
+.shimmer{width:200px;height:20px;background:linear-gradient(90deg,var(--brand-soft) 25%,var(--brand-deep) 50%,var(--brand-soft) 75%);
+  background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:10px;margin-bottom:16px;}
+@keyframes shimmer{0%{background-position:200% 0;}100%{background-position:-200% 0;}}
 .universal-loader p{font-size:14px;color:var(--muted);font-weight:500;}
 
 /* ---------- section chrome ---------- */
@@ -754,7 +757,7 @@ body{margin:0;padding:0;}
 /* ---------- roster, full width ---------- */
 .group{margin-bottom:22px !important;}
 .group-title{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;
-  letter-spacing:.13em;text-transform:uppercase;color:var(--brand-deep);margin:0 6px 11px;}
+  letter-spacing:.13em;text-transform:uppercase;color:var(--brand-deep);margin:0 6px 11px !important;}
 .gline{flex:1;height:1px;background:var(--rule);}
 .gcount{font-size:11px;color:var(--muted);letter-spacing:0;}
 .card{position:relative;background:var(--card);border:1px solid var(--rule);
@@ -770,8 +773,8 @@ body{margin:0;padding:0;}
 .card-id h4{font-size:19px;font-weight:700;letter-spacing:-.025em;line-height:1.2;}
 .cat-line{display:flex;align-items:center;gap:6px;margin-top:6px !important;font-size:12.5px;
   font-weight:600;color:var(--brand-deep);}
-.degrees{font-size:12px;color:var(--muted);margin-top:6px !important;line-height:1.5;}
-.exp{font-size:11px;color:var(--muted);margin-top:4px !important;}
+.degrees{font-size:12px;color:var(--muted);margin-top:6px !important;line-height:1.5;font-weight:600;}
+.exp{font-size:11px;color:var(--brand-deep);margin-top:4px !important;font-weight:600;}
 .tag-live{flex:0 0 auto;font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
   background:var(--live);color:#fff;padding:4px 9px;border-radius:100px;}
 
@@ -782,13 +785,16 @@ body{margin:0;padding:0;}
 .sched li{display:flex;align-items:baseline;gap:9px;font-size:13.5px;}
 .day{font-weight:500;white-space:nowrap;}
 .leader{flex:1;height:1px;border-bottom:1px dotted var(--rule);transform:translateY(-3px);}
-.time{color:var(--muted);white-space:nowrap;font-size:12.5px;}
+.time{white-space:nowrap;font-size:12.5px;}
 .row-today .day{color:var(--brand-deep);font-weight:700;}
 .row-today .time{color:var(--brand-deep);}
 .row-live .day,.row-live .time{color:var(--live);font-weight:700;}
 
 .remark{margin-top:15px !important;font-size:12.5px;color:var(--brand-deep);line-height:1.55;
-  padding:10px 12px;background:#FFF8E1;border:1px solid #FFD54F;border-radius:10px;font-weight:500;text-align:center;}
+  padding:8px 8px !important;background:#FFF8E1;border:1px solid #FFD54F;border-radius:10px;font-weight:500;text-align:center;}
+.hospital-name{margin-top:12px !important;font-size:13px;color:var(--ink);font-weight:600;line-height:1.5;}
+.additional-text{margin-top:6px !important;font-size:12.5px;line-height:1.5;}
+.additional-text--bold{font-weight:600;color:var(--ink);}
 .live,.soon{margin-top:14px !important;font-size:12.5px;font-weight:600;}
 .live{color:var(--live);} .soon{color:var(--muted);}
 
