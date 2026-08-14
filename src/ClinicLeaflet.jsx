@@ -158,13 +158,13 @@ export default function ClinicLeaflet() {
 
   useEffect(() => {
     const id = currentId;
-    
+
     if (!id) {
       setLoading(false);
       setData(null);
       return;
     }
-    
+
     setLoading(true);
     setData(null); // Clear previous data while loading
     const ctrl = new AbortController();
@@ -208,7 +208,7 @@ export default function ClinicLeaflet() {
   const today = now.getDay();
 
   const visible = (filter === "all" || !filter) ? doctors : doctors.filter((d) => d.category === filter);
-  const searched = searchQuery.trim() 
+  const searched = searchQuery.trim()
     ? visible.filter((d) => d.name.toLowerCase().includes(searchQuery.toLowerCase()))
     : visible;
   const grouped = useMemo(() => {
@@ -300,13 +300,8 @@ export default function ClinicLeaflet() {
       </div>
 
       <div className="shell">
-        {/* ═══ Universal Loader ═══ */}
-        {loading && (
-          <div className="universal-loader">
-            <div className="shimmer"></div>
-            <p>Loading clinic data...</p>
-          </div>
-        )}
+        {/* ═══ Skeleton while loading ═══ */}
+        {loading && <PageSkeleton />}
 
         {/* ═══ Header: name, address and contact ═══ */}
         {!loading && clinic && (
@@ -358,9 +353,7 @@ export default function ClinicLeaflet() {
             </div>
           </div>
 
-          {loading ? (
-            <div className="lane">{[0, 1, 2].map((i) => <div key={i} className="skel-slot" />)}</div>
-          ) : todaySlots.length === 0 ? (
+          {todaySlots.length === 0 ? (
             <p className="empty">No chambers are scheduled today. Call the clinic to ask about tomorrow.</p>
           ) : (
             <div className="lane" ref={todayRailRef}>
@@ -425,21 +418,19 @@ export default function ClinicLeaflet() {
 
         {/* ═══ Roster — full width ═══ */}
         <section className="roster" ref={rosterRef}>
-          {loading
-            ? [0, 1, 2].map((i) => <div key={i} className="skel-card" />)
-            : grouped.map(([cat, docs]) => (
-                <div className="group" key={cat}>
-                  <h3 className="group-title">
-                    <CatIcon name={cat} src={imageOf.get(cat)} size="xs" />
-                    <span>{cat}</span>
-                    <i className="gline" />
-                  </h3>
-                  {docs.map((doc, i) => (
-                    <DoctorCard key={doc.id} doc={doc} today={today} nowMins={nowMins} index={i}
-                                catImage={imageOf.get(doc.category)} />
-                  ))}
-                </div>
+          {grouped.map(([cat, docs]) => (
+            <div className="group" key={cat}>
+              <h3 className="group-title">
+                <CatIcon name={cat} src={imageOf.get(cat)} size="xs" />
+                <span>{cat}</span>
+                <i className="gline" />
+              </h3>
+              {docs.map((doc, i) => (
+                <DoctorCard key={doc.id} doc={doc} today={today} nowMins={nowMins} index={i}
+                            catImage={imageOf.get(doc.category)} />
               ))}
+            </div>
+          ))}
         </section>
 
         {/* ═══ Visit ═══ */}
@@ -480,6 +471,71 @@ export default function ClinicLeaflet() {
       <div className="actions">
         <a className="btn btn--ghost" href={maps} target="_blank" rel="noreferrer"><MapPin /> Directions</a>
         <a className="btn btn--solid" href={`tel:${tel || ""}`}><Phone /> Call the clinic</a>
+      </div>
+    </div>
+  );
+}
+
+/* ==================================================================
+   Skeleton — mirrors the real layout so nothing jumps when the
+   data lands. Green header block, chip row, search field, then
+   doctor cards with avatar, name lines and schedule rows.
+==================================================================== */
+function PageSkeleton() {
+  return (
+    <div className="sk" aria-busy="true" aria-label="Loading clinic details">
+      {/* header on brand green */}
+      <div className="sk-head">
+        <span className="sk-b sk-on-dark sk-title" />
+        <span className="sk-b sk-on-dark sk-addr" />
+        <div className="sk-phones">
+          <span className="sk-b sk-on-dark sk-phone" />
+          <span className="sk-b sk-on-dark sk-phone" />
+        </div>
+      </div>
+
+      {/* speciality chips */}
+      <div className="sk-strip">
+        {[92, 116, 84, 104, 96, 88].map((w, i) => (
+          <span key={i} className="sk-b sk-chip" style={{ width: w }} />
+        ))}
+      </div>
+
+      {/* search field */}
+      <div className="sk-search"><span className="sk-b sk-field" /></div>
+
+      {/* doctor cards */}
+      <div className="sk-roster">
+        {[0, 1, 2].map((g) => (
+          <div className="sk-group" key={g}>
+            <div className="sk-grouphead">
+              <span className="sk-b sk-dot" />
+              <span className="sk-b sk-gtitle" />
+              <i className="sk-gline" />
+            </div>
+
+            <div className="sk-card">
+              <div className="sk-cardtop">
+                <span className="sk-b sk-avatar" />
+                <div className="sk-lines">
+                  <span className="sk-b sk-l1" />
+                  <span className="sk-b sk-l2" />
+                  <span className="sk-b sk-l3" />
+                </div>
+              </div>
+              <div className="sk-sched">
+                <span className="sk-b sk-schedh" />
+                {[0, 1, 2].map((r) => (
+                  <div className="sk-row" key={r}>
+                    <span className="sk-b sk-day" />
+                    <i className="sk-leader" />
+                    <span className="sk-b sk-time" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -672,13 +728,59 @@ body{margin:0;padding:0;}
 .no-id-message h2{font-size:24px;font-weight:700;color:var(--ink);margin-bottom:12px;}
 .no-id-message p{font-size:14px;color:var(--muted);line-height:1.6;}
 
-/* ---------- universal loader ---------- */
-.universal-loader{display:flex;flex-direction:column;align-items:center;justify-content:center;
-  padding:80px 22px;text-align:center;}
-.shimmer{width:200px;height:20px;background:linear-gradient(90deg,var(--brand-soft) 25%,var(--brand-deep) 50%,var(--brand-soft) 75%);
-  background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:10px;margin-bottom:16px;}
-@keyframes shimmer{0%{background-position:200% 0;}100%{background-position:-200% 0;}}
-.universal-loader p{font-size:14px;color:var(--muted);font-weight:500;}
+/* ══════════════ SKELETON ══════════════
+   One sweep animation drives every block. Light blocks sit on the
+   page background, .sk-on-dark blocks sit on the green header. */
+.sk-b{display:block;border-radius:8px;position:relative;overflow:hidden;
+  background:#E1E8E9;}
+.sk-b::after{content:"";position:absolute;inset:0;transform:translateX(-100%);
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.85),transparent);
+  animation:sweep 1.5s infinite;}
+.sk-on-dark{background:rgba(255,255,255,.22);}
+.sk-on-dark::after{background:linear-gradient(90deg,transparent,rgba(255,255,255,.45),transparent);}
+@keyframes sweep{100%{transform:translateX(100%);}}
+
+.sk-head{background:#0E906E;padding:34px 22px 30px;display:flex;flex-direction:column;
+  align-items:center;}
+.sk-title{width:62%;height:29px;border-radius:9px;}
+.sk-addr{width:86%;height:15px;margin-top:15px;}
+.sk-phones{display:flex;gap:14px;margin-top:15px;}
+.sk-phone{width:104px;height:15px;}
+
+.sk-strip{display:flex;gap:7px;padding:16px 22px 14px;overflow:hidden;}
+.sk-chip{height:38px;border-radius:100px;flex:0 0 auto;}
+
+.sk-search{padding:0 22px;}
+.sk-field{width:100%;height:41px;border-radius:12px;}
+
+.sk-roster{padding:20px 16px 30px;}
+.sk-group{margin-bottom:22px;}
+.sk-grouphead{display:flex;align-items:center;gap:8px;margin:0 6px 11px;}
+.sk-dot{width:16px;height:16px;border-radius:50%;flex:0 0 auto;}
+.sk-gtitle{width:104px;height:11px;border-radius:4px;flex:0 0 auto;}
+.sk-gline{flex:1;height:1px;background:var(--rule);}
+
+.sk-card{background:var(--card);border:1px solid var(--rule);padding:10px;
+  box-shadow:0 1px 2px rgba(18,38,43,.04);}
+.sk-cardtop{display:flex;gap:13px;align-items:flex-start;}
+.sk-avatar{width:52px;height:52px;border-radius:15px;flex:0 0 auto;}
+.sk-lines{flex:1;min-width:0;padding-top:2px;}
+.sk-l1{width:64%;height:18px;border-radius:6px;}
+.sk-l2{width:44%;height:12px;margin-top:9px;}
+.sk-l3{width:78%;height:12px;margin-top:8px;}
+
+.sk-sched{margin-top:16px;padding-top:14px;border-top:1px solid var(--rule);}
+.sk-schedh{width:96px;height:10px;border-radius:4px;margin-bottom:12px;}
+.sk-row{display:flex;align-items:center;gap:9px;margin-top:11px;}
+.sk-day{width:74px;height:12px;flex:0 0 auto;}
+.sk-leader{flex:1;height:1px;border-bottom:1px dotted var(--rule);}
+.sk-time{width:112px;height:12px;flex:0 0 auto;}
+
+@media (prefers-reduced-motion:reduce){
+  .sk-b::after{animation:none;}
+  .sk-b{animation:sk-pulse 1.6s ease-in-out infinite;}
+  @keyframes sk-pulse{0%,100%{opacity:.55;}50%{opacity:1;}}
+}
 
 /* ---------- section chrome ---------- */
 .today{padding:26px 0 24px;}
@@ -828,14 +930,6 @@ body{margin:0;padding:0;}
 .btn--solid{flex:1.5;background:#0E906E;color:#fff !important;
   box-shadow:0 12px 24px -12px rgba(10,124,122,.8);}
 .btn--ghost{background:#0E906E;border:1px solid var(--rule);color:#fff !important;}
-
-/* ---------- skeletons ---------- */
-.skel-header-name{width:200px;height:35px;border-radius:8px;margin:0 auto;background:rgba(255,255,255,.3);animation:shim 1.3s infinite;}
-.skel-header-address{width:280px;height:20px;border-radius:6px;margin:13px auto 0;background:rgba(255,255,255,.25);animation:shim 1.3s infinite;}
-.skel-header-phone{width:120px;height:20px;border-radius:6px;margin:13px auto 0;background:rgba(255,255,255,.25);animation:shim 1.3s infinite;}
-.skel-slot{flex:0 0 auto;width:186px;height:132px;border-radius:16px;background:#E4EBEB;animation:shim 1.3s infinite;}
-.skel-card{height:210px;border-radius:18px;margin-bottom:12px !important;background:#E4EBEB;animation:shim 1.3s infinite;}
-@keyframes shim{0%,100%{opacity:.5;}50%{opacity:.95%;}}
 
 @media (prefers-reduced-motion:reduce){
   .dd *{animation:none !important;transition:none !important;}
