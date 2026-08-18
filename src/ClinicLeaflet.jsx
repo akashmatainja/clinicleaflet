@@ -196,16 +196,44 @@ export default function ClinicLeaflet() {
   }, [currentId]);
 
   useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 30000);
     const onScroll = () => setScrolled(window.scrollY > 220);
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => { clearInterval(t); window.removeEventListener("scroll", onScroll); };
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   const clinic = data?.clinic;
   const doctors = data?.doctor || data?.doctors || data?.Doctor || [];
   const nowMins = now.getHours() * 60 + now.getMinutes();
   const today = now.getDay();
+
+  /* ── Clock ─────────────────────────────────────────────────────
+     Instead of polling every 30s, sleep until the exact moment the
+     next chamber opens or closes, so the live state flips on time.
+     Reschedules itself after every tick; capped at 30 min so a
+     phone waking from sleep doesn't sit on a stale timer.         */
+  useEffect(() => {
+    const nowMs = now.getHours() * 3600000 + now.getMinutes() * 60000 + now.getSeconds() * 1000;
+    const marks = buildSlots(doctors)
+      .filter((s) => s.dayIndex === now.getDay())
+      .flatMap((s) => [s.start * 60000, s.end * 60000])
+      .filter((ms) => ms > nowMs)
+      .sort((a, b) => a - b);
+
+    const nextMs = marks.length ? marks[0] - nowMs : 86400000 - nowMs;
+    const id = setTimeout(() => setNow(new Date()), Math.min(nextMs + 1000, 1800000));
+    return () => clearTimeout(id);
+  }, [now, doctors]);
+
+  /* Re-check the moment the tab is brought back to the foreground. */
+  useEffect(() => {
+    const onWake = () => { if (!document.hidden) setNow(new Date()); };
+    document.addEventListener("visibilitychange", onWake);
+    window.addEventListener("focus", onWake);
+    return () => {
+      document.removeEventListener("visibilitychange", onWake);
+      window.removeEventListener("focus", onWake);
+    };
+  }, []);
 
   const visible = (filter === "all" || !filter) ? doctors : doctors.filter((d) => d.category === filter);
   const searched = searchQuery.trim()
@@ -216,12 +244,6 @@ export default function ClinicLeaflet() {
     searched.forEach((d) => { if (!m.has(d.category)) m.set(d.category, []); m.get(d.category).push(d); });
     return [...m.entries()];
   }, [searched]);
-
-  useEffect(() => {
-    if (loading) return;
-    // Force all reveal elements to be visible immediately
-    document.querySelectorAll(".reveal:not(.in)").forEach((el) => el.classList.add("in"));
-  }, [loading, grouped]);
 
   const todaySlots = useMemo(
     () => buildSlots(doctors).filter((s) => s.dayIndex === today).sort((a, b) => a.start - b.start),
@@ -348,7 +370,7 @@ export default function ClinicLeaflet() {
               <h2>Who is here today</h2>
               <p className="sub">
                 <span className={`pip pip--${status.tone}`} />
-                {loading ? "Checking today's chambers" : status.line} · {dateLabel}
+                {status.line} · {dateLabel}
               </p>
             </div>
           </div>
@@ -568,9 +590,12 @@ function DoctorCard({ doc, today, nowMins, index, catImage }) {
   const photo = doc.image || doc.images || doc.photo || doc.avatar || "http://www.medcoclinics.com/assets/img/avatar/avatar-1.png";
   const [photoFailed, setPhotoFailed] = useState(false);
 
+  /* NOTE: no "reveal" class and no JS-added "in" class here. The entry
+     effect is a CSS animation, so when React rewrites className on a
+     live-state change the card cannot be knocked back to opacity:0.  */
   return (
-    <article className={`card reveal ${sittingNow ? "card--live" : ""}`}
-             style={{ transitionDelay: `${Math.min(index, 6) * 50}ms` }}>
+    <article className={`card ${sittingNow ? "card--live" : ""}`}
+             style={{ animationDelay: `${Math.min(index, 6) * 50}ms` }}>
       <div className="card-top">
         {!photoFailed ? (
           <img className="photo" src={photo} alt="" loading="lazy" onError={() => setPhotoFailed(true)} />
@@ -776,12 +801,6 @@ body{margin:0;padding:0;}
 .sk-leader{flex:1;height:1px;border-bottom:1px dotted var(--rule);}
 .sk-time{width:112px;height:12px;flex:0 0 auto;}
 
-@media (prefers-reduced-motion:reduce){
-  .sk-b::after{animation:none;}
-  .sk-b{animation:sk-pulse 1.6s ease-in-out infinite;}
-  @keyframes sk-pulse{0%,100%{opacity:.55;}50%{opacity:1;}}
-}
-
 /* ---------- section chrome ---------- */
 .today{padding:26px 0 24px;}
 .find{padding:6px 0 6px;}
@@ -802,7 +821,8 @@ body{margin:0;padding:0;}
 .sec-head{padding:0 22px;margin-bottom:16px !important;}
 .sec-head h2{font-size:20px;font-weight:700;letter-spacing:-.02em;}
 .sub{display:flex;align-items:center;gap:7px;margin-top:6px !important;font-size:12.5px;color:var(--muted);}
-.pip{width:7px;height:7px;border-radius:50%;flex:0 0 auto;background:var(--muted);}
+.pip{width:7px;height:7px;border-radius:50%;flex:0 0 auto;background:var(--muted);
+  transition:background .5s ease;}
 .pip--open{background:var(--live);animation:pulse 2s infinite;}
 .pip--soon{background:var(--brand);}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(232,85,61,.5);}70%{box-shadow:0 0 0 8px rgba(232,85,61,0);}100%{box-shadow:0 0 0 0 rgba(232,85,61,0);}}
@@ -814,17 +834,18 @@ body{margin:0;padding:0;}
 .lane::-webkit-scrollbar{display:none;}
 .slot{flex:0 0 auto;width:186px;scroll-snap-align:center;background:var(--card);
   border:1px solid var(--rule);padding:14px;
-  box-shadow:0 1px 2px rgba(18,38,43,.04);}
+  box-shadow:0 1px 2px rgba(18,38,43,.04);
+  transition:border-color .5s ease,box-shadow .5s ease,opacity .5s ease;}
 .slot-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px !important;}
 .pill-live,.pill-next,.pill-done{font-size:9.5px;font-weight:600;letter-spacing:.08em;
   text-transform:uppercase;padding:4px 8px;border-radius:100px;white-space:nowrap;}
-.pill-live{background:var(--live);color:#fff;}
+.pill-live{background:var(--live);color:#fff;animation:tagIn .35s cubic-bezier(.2,.75,.3,1) both;}
 .pill-next{background:var(--brand-soft);color:var(--brand-deep);}
 .pill-done{background:#EEF2F2;color:var(--muted);}
 .slot-name{font-size:15.5px;font-weight:700;letter-spacing:-.02em;line-height:1.25;}
 .slot-cat{font-size:11.5px;color:var(--muted);margin-top:4px !important;}
 .slot-time{margin-top:11px !important;padding-top:10px;border-top:1px dashed var(--rule);
-  font-size:12.5px;font-weight:500;color:var(--brand-deep);}
+  font-size:12.5px;font-weight:500;color:var(--brand-deep);transition:color .5s ease;}
 .slot.is-now{border-color:var(--live);box-shadow:0 0 0 3px var(--live-soft);}
 .slot.is-now .slot-time{color:var(--live);}
 .slot.is-past{opacity:.55;}
@@ -862,10 +883,16 @@ body{margin:0;padding:0;}
   letter-spacing:.13em;text-transform:uppercase;color:var(--brand-deep);margin:0 6px 11px !important;}
 .gline{flex:1;height:1px;background:var(--rule);}
 .gcount{font-size:11px;color:var(--muted);letter-spacing:0;}
+
+/* Entry is an ANIMATION, not a class toggled from JS. React can rewrite
+   className freely (e.g. adding card--live at a schedule boundary)
+   without the card ever falling back to opacity:0. */
 .card{position:relative;background:var(--card);border:1px solid var(--rule);
-  padding:10px;margin-bottom:12px !important;box-shadow:0 1px 2px rgba(18,38,43,.04),0 12px 24px -22px rgba(18,38,43,.4);
-  opacity:0;transform:translateY(12px);transition:opacity .5s ease,transform .5s cubic-bezier(.2,.75,.3,1);}
-.card.in{opacity:1;transform:none;}
+  padding:10px;margin-bottom:12px !important;
+  box-shadow:0 1px 2px rgba(18,38,43,.04),0 12px 24px -22px rgba(18,38,43,.4);
+  animation:cardIn .5s cubic-bezier(.2,.75,.3,1) both;
+  transition:border-color .5s ease,box-shadow .5s ease;}
+@keyframes cardIn{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:none;}}
 .card--live{border-color:var(--live);box-shadow:0 0 0 3px var(--live-soft);}
 .card-top{display:flex;gap:13px;align-items:flex-start;}
 .photo,.monogram{flex:0 0 auto;width:52px;height:52px;border-radius:15px;}
@@ -878,16 +905,20 @@ body{margin:0;padding:0;}
 .degrees{font-size:12px;color:var(--muted);margin-top:6px !important;line-height:1.5;font-weight:600;}
 .exp{font-size:11px;color:var(--brand-deep);margin-top:4px !important;font-weight:600;}
 .tag-live{flex:0 0 auto;font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
-  background:var(--live);color:#fff;padding:4px 9px;border-radius:100px;}
+  background:var(--live);color:#fff;padding:4px 9px;border-radius:100px;
+  animation:tagIn .35s cubic-bezier(.2,.75,.3,1) both;}
+@keyframes tagIn{from{opacity:0;transform:scale(.8);}to{opacity:1;transform:none;}}
 
 .sched{margin-top:16px !important;padding-top:14px;border-top:1px solid var(--rule);}
 .sched-h{font-size:10.5px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;
   color:var(--muted);margin-bottom:10px !important;}
 .sched ul{display:flex;flex-direction:column;gap:9px;}
 .sched li{display:flex;align-items:baseline;gap:9px;font-size:13.5px;}
-.day{font-weight:500;white-space:nowrap;}
+
+/* Colour changes when a chamber opens or closes fade instead of snapping. */
+.day{font-weight:500;white-space:nowrap;transition:color .5s ease;}
 .leader{flex:1;height:1px;border-bottom:1px dotted var(--rule);transform:translateY(-3px);}
-.time{white-space:nowrap;font-size:12.5px;}
+.time{white-space:nowrap;font-size:12.5px;transition:color .5s ease;}
 .row-today .day{color:var(--brand-deep);font-weight:700;}
 .row-today .time{color:var(--brand-deep);}
 .row-live .day,.row-live .time{color:var(--live);font-weight:700;}
@@ -897,7 +928,8 @@ body{margin:0;padding:0;}
 .hospital-name{margin-top:12px !important;font-size:13px;color:var(--ink);font-weight:600;line-height:1.5;}
 .additional-text{margin-top:6px !important;font-size:12.5px;line-height:1.5;}
 .additional-text--bold{font-weight:600;color:var(--ink);}
-.live,.soon{margin-top:14px !important;font-size:12.5px;font-weight:600;}
+.live,.soon{margin-top:14px !important;font-size:12.5px;font-weight:600;
+  animation:tagIn .35s cubic-bezier(.2,.75,.3,1) both;}
 .live{color:var(--live);} .soon{color:var(--muted);}
 
 /* ---------- visit ---------- */
@@ -931,8 +963,14 @@ body{margin:0;padding:0;}
   box-shadow:0 12px 24px -12px rgba(10,124,122,.8);}
 .btn--ghost{background:#0E906E;border:1px solid var(--rule);color:#fff !important;}
 
+/* ---------- reduced motion ----------
+   Kill movement, but never opacity: cards must stay visible. */
 @media (prefers-reduced-motion:reduce){
-  .dd *{animation:none !important;transition:none !important;}
-  .card{opacity:1;transform:none;}
+  .dd *{transition:none !important;}
+  .card,.tag-live,.pill-live,.live,.soon{animation:none !important;opacity:1 !important;transform:none !important;}
+  .pip--open{animation:none !important;}
+  .sk-b::after{animation:none !important;}
+  .sk-b{animation:sk-pulse 1.6s ease-in-out infinite !important;}
+  @keyframes sk-pulse{0%,100%{opacity:.55;}50%{opacity:1;}}
 }
 `;
