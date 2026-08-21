@@ -1262,8 +1262,8 @@ body{margin:0;padding:0;}
 .s2-block{position:relative;margin:0 -16px;padding:24px 22px 28px;
   animation:cardIn .5s cubic-bezier(.2,.75,.3,1) both;background:var(--s2-bg);}
 /* two tones alternate down the page for rhythm */
-.s2-a{--s2-bg:#EAF1FD;--s2-ink:#123E8C;--s2-deep:#14306B;}
-.s2-b{--s2-bg:#E6F4F0;--s2-ink:#0C6A5D;--s2-deep:#0A4941;}
+.s2-a{--s2-bg:#bbd4ee;--s2-ink:#123E8C;--s2-deep:#14306B;}
+.s2-b{--s2-bg:#c9fdee;--s2-ink:#0C6A5D;--s2-deep:#0A4941;}
 .s2-block.is-live{--s2-bg:#FDF0E8;--s2-ink:#B0450F;--s2-deep:#8A360B;}
 
 .s2-hd{display:flex;align-items:flex-start;gap:10px;}
