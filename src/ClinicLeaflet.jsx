@@ -423,6 +423,10 @@ export default function ClinicLeaflet() {
           </header>
         )}
 
+        <p className="print-only print-stamp">
+          Chamber schedule · {new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })} · medcoclinics.com
+        </p>
+
         {!loading && !clinic && (
           <div className="no-id-message">
             <h2>Clinic Not Found</h2>
@@ -445,22 +449,31 @@ export default function ClinicLeaflet() {
                   </label>
                 </div>
               ) : theme === "silver" ? (
-                <div className="strip-wrap">
-                  <div className="strip s-tabs" role="tablist" aria-label="Specialities">
-                    <button role="tab" aria-selected={filter === "all"}
-                            className={`s-tab ${filter === "all" ? "on" : ""}`}
-                            onClick={(e) => pickCategory("all", e)}>
-                      All <span className="mono">{doctors.length}</span>
-                    </button>
-                    {usedCats.map((c) => (
-                      <button key={c.name} role="tab" aria-selected={filter === c.name}
-                              className={`s-tab ${filter === c.name ? "on" : ""}`}
-                              onClick={(e) => pickCategory(c.name, e)}>
-                        {shortCat(c.name)} <span className="mono">{c.count}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                <div className="s2-cats-wrap">
+    <div className="s2-cats" role="tablist" aria-label="Specialities">
+      <button role="tab" aria-selected={filter === "all"}
+              className={`s2-cat-btn ${filter === "all" ? "on" : ""}`}
+              onClick={(e) => pickCategory("all", e)}>
+        <span className="s2-orb">
+          <span className="s2-orb-in"><Glyph name="All" /></span>
+          <span className="s2-count mono">{doctors.length}</span>
+        </span>
+        <span className="s2-label">All</span>
+      </button>
+
+      {usedCats.map((c) => (
+        <button key={c.name} role="tab" aria-selected={filter === c.name}
+                className={`s2-cat-btn ${filter === c.name ? "on" : ""}`}
+                onClick={(e) => pickCategory(c.name, e)}>
+          <span className="s2-orb">
+            <span className="s2-orb-in"><CatIcon name={c.name} src={c.image} size="orb" /></span>
+            <span className="s2-count mono">{c.count}</span>
+          </span>
+          <span className="s2-label">{c.name}</span>
+        </button>
+      ))}
+    </div>
+  </div>
               ) : (
                 <div className="strip-wrap">
                   <div className="strip" role="tablist" aria-label="Specialities">
@@ -475,7 +488,7 @@ export default function ClinicLeaflet() {
                               className={`chip ${filter === c.name ? "on" : ""}`}
                               onClick={(e) => pickCategory(c.name, e)}>
                         <CatIcon name={c.name} src={c.image} size="chip" />
-                        {shortCat(c.name)}<span className="chip-n mono">{c.count}</span>
+                        {c.name}<span className="chip-n mono">{c.count}</span>
                       </button>
                     ))}
                   </div>
@@ -768,6 +781,24 @@ function GoldRoster({ doctors, day, setDay, today, nowMins, imageOf }) {
           })}
         </ol>
       )}
+      <div className="print-only g-print">
+  {doctors.map((doc) => {
+    const st = statusOf(doc, today, nowMins);
+    return (
+      <article className="g-item" key={`pr-${doc.id}`}>
+        <div className="g-head">
+          <Avatar doc={doc} className="g-photo" />
+          <div className="g-id">
+            <h4>{doc.name}</h4>
+            <DoctorMeta doc={doc} catImage={imageOf.get(doc.category)} />
+          </div>
+        </div>
+        <ScheduleList rows={st.rows} today={today} nowMins={nowMins} />
+        <Remark doc={doc} />
+      </article>
+    );
+  })}
+</div>
     </div>
   );
 }
@@ -802,7 +833,10 @@ function PlatinumRoster({ groups, today, nowMins, imageOf, onOpen }) {
                 </div>
 
                 <Remark doc={doc} />
-
+                <div className="print-only">
+                  <DoctorMeta doc={doc} catImage={imageOf.get(doc.category)} />
+                  <ScheduleList rows={st.rows} today={today} nowMins={nowMins} />
+                </div>
                 <div className="p-foot">
                   <StatusLine st={st} />
                   <button className="p-btn" onClick={() => onOpen(doc)}>
@@ -995,6 +1029,8 @@ const Glyph = ({ name }) => (
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&family=DM+Mono:wght@400;500&display=swap');
 
+.print-only{display:none;}
+
 body{margin:0;padding:0;}
 
 /* ═════════ PALETTES — names are tiers, colours are chosen to look
@@ -1173,12 +1209,17 @@ body{margin:0;padding:0;}
 .theme-platinum .chip .chip-ic,.theme-platinum .chip .cat-ic--chip{background:#fff;}
 .theme-platinum .chip.on{background:var(--accent-2);}
 
-.s-tabs{gap:18px;padding-bottom:0;border-bottom:1px solid var(--rule);margin:0 0 4px;}
-.s-tab{flex:0 0 auto;padding:0 0 12px;font-size:13.5px !important;font-weight:600 !important;color:var(--muted);
-  cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent !important;margin-bottom:-1px;
-  transition:color .18s,border-color .18s;}
-.s-tab span{font-size:11px;opacity:.7;}
-.s-tab.on{color:var(--accent) !important;border-bottom-color:var(--accent) !important;}
+.s-tabs{gap:8px;padding:14px 0 0;margin:0 0 6px;border-bottom:1px solid var(--rule);}
+.s-tab{flex:0 0 auto;display:inline-flex;align-items:center;gap:8px;padding:8px 13px 10px;
+  font-size:13px !important;font-weight:700 !important;color:var(--muted);cursor:pointer;white-space:nowrap;
+  background:#F7F9FC;border:1px solid var(--rule);border-bottom:none;border-radius:12px 12px 0 0;
+  margin-bottom:-1px;transition:color .18s,background .18s,transform .18s,box-shadow .18s;}
+.s-tab span{font-size:11px;opacity:.7;margin-left:4px;}
+.s-tab .cat-ic--chip{width:22px;height:22px;}
+.s-tab .cat-ic--chip img{width:13px;height:13px;}
+.s-tab.on{color:#fff !important;background:var(--accent);border-color:var(--accent);transform:translateY(-3px);box-shadow:0 6px 14px -6px var(--accent);}
+.s-tab.on .cat-ic--chip{background:rgba(255,255,255,.2);color:#fff;}
+.s-tab.on .cat-ic--chip img{filter:brightness(0) invert(1);}
 .s-tabs .s-tab:first-child{margin-left:22px;}
 .s-tabs .s-tab:last-child{margin-right:22px;}
 
@@ -1307,6 +1348,57 @@ body{margin:0;padding:0;}
   letter-spacing:-.01em;color:#C08A1E;cursor:pointer;padding:4px 0;}
 .s2-chev{display:grid;place-items:center;transition:transform .3s;}
 .s2-sched[aria-expanded="true"] .s2-chev{transform:rotate(180deg);}
+
+
+/* ═══════════ SILVER — orb category strip ═══════════ */
+.s2-cats-wrap{position:relative;}
+.s2-cats-wrap::before,.s2-cats-wrap::after{content:"";position:absolute;top:0;bottom:0;
+  width:22px;pointer-events:none;z-index:2;}
+.s2-cats-wrap::before{left:0;background:linear-gradient(90deg,var(--page),transparent);}
+.s2-cats-wrap::after{right:0;background:linear-gradient(270deg,var(--page),transparent);}
+.s2-cats{display:flex;gap:8px;overflow-x:auto;padding:6px 18px 18px;
+  scroll-snap-type:x proximity;scrollbar-width:none;-webkit-overflow-scrolling:touch;}
+.s2-cats::-webkit-scrollbar{display:none;}
+
+.s2-cat-btn{flex:0 0 auto;width:92px;min-width:0;scroll-snap-align:center;
+  display:flex;flex-direction:column;align-items:center;gap:9px;padding:0;
+  cursor:pointer;background:none;}
+
+.s2-orb{position:relative;width:54px;height:54px;display:grid;place-items:center;
+  border-radius:50%;transition:transform .28s cubic-bezier(.2,.8,.3,1);}
+.s2-cat-btn:active .s2-orb{transform:scale(.92);}
+/* halo ring, drawn behind and revealed on select */
+.s2-orb::before{content:"";position:absolute;inset:-4px;border-radius:50%;
+  background:conic-gradient(from 140deg,var(--accent),#12B3A6,var(--accent-2),var(--accent));
+  opacity:0;transform:scale(.82);transition:opacity .3s,transform .3s cubic-bezier(.2,.8,.3,1);}
+.s2-orb-in{position:relative;z-index:1;width:54px;height:54px;border-radius:50%;
+  display:grid;place-items:center;background:#fff;color:var(--accent);
+  border:1px solid var(--rule);overflow:hidden;
+  transition:background .28s,color .28s,border-color .28s,box-shadow .28s;}
+.cat-ic--orb{display:grid;place-items:center;width:26px;height:26px;}
+.cat-ic--orb img{width:26px;height:26px;object-fit:contain;
+  transition:filter .28s;}
+
+.s2-count{position:absolute;z-index:2;top:-3px;right:-3px;min-width:19px;height:19px;padding:0 5px;
+  border-radius:99px;background:var(--ink);color:#fff;font-size:10px;line-height:19px;
+  text-align:center;box-shadow:0 0 0 2.5px var(--page);transition:background .28s;}
+
+.s2-label{width:100%;min-height:26px;font-size:10.5px;font-weight:600;line-height:1.25;
+  letter-spacing:-.005em;color:var(--muted);text-align:center;
+  transition:color .28s,font-weight .28s;
+  overflow-wrap:anywhere;word-break:break-word;hyphens:auto;}
+
+.s2-label{min-height:28px;}
+
+/* selected */
+.s2-cat-btn.on .s2-orb::before{opacity:1;transform:scale(1);animation:orbSpin 7s linear infinite;}
+@keyframes orbSpin{to{transform:rotate(360deg);}}
+.s2-cat-btn.on .s2-orb-in{border-color:transparent;color:#fff;
+  background:linear-gradient(150deg,var(--accent),var(--accent-2));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.3);}
+.s2-cat-btn.on .cat-ic--orb img{filter:brightness(0) invert(1);}
+.s2-cat-btn.on .s2-count{background:var(--live);}
+.s2-cat-btn.on .s2-label{color:var(--accent);font-weight:800;}
 
 /* ═══════════ GOLD — day tabs + timeline ═══════════ */
 .g-days{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;padding:0 6px 4px;}
@@ -1476,20 +1568,137 @@ body{margin:0;padding:0;}
   .sk-b::after{animation:none !important;}
   .sk-b{animation:sk-pulse 1.6s ease-in-out infinite !important;}
   @keyframes sk-pulse{0%,100%{opacity:.55;}50%{opacity:1;}}
+  .s2-cat-btn.on .s2-orb::before{animation:none !important;}
 }
 
-/* ---------- print / save as PDF ---------- */
+/* ═══════════ PRINT / SAVE AS PDF ═══════════ */
 @media print{
-  .topbar,.fab-bar,.toast,.search-wrap,.sheet-wrap,.strip-wrap::after,.s-chev,.p-btn{display:none !important;}
-  .dd,.shell{background:#fff !important;box-shadow:none !important;}
-  .shell{max-width:100% !important;padding-bottom:0 !important;}
-  .card,.group,.s-row,.g-item,.p-card,.head,.visit{break-inside:avoid;page-break-inside:avoid;}
-  .card,.s-row,.g-item,.p-card{animation:none !important;opacity:1 !important;transform:none !important;
-    box-shadow:none !important;}
-  .s-panel{display:block !important;}
-  .strip{flex-wrap:wrap;overflow:visible;}
-  .head,.visit,.foot,.chip.on,.g-day.on,.p-rail{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-  @page{margin:12mm;}
-  .s2-panel{display:block !important;}
+  @page{size:A4;margin:14mm 12mm;}
+
+  /* keep every fill and tint — browsers drop backgrounds otherwise */
+  .dd,.dd *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;
+    animation:none !important;transition:none !important;}
+
+  html,body{background:#fff !important;}
+  .dd{background:#fff !important;}
+  .shell{max-width:100% !important;width:100% !important;min-height:0 !important;
+    padding:0 !important;box-shadow:none !important;background:#fff !important;}
+
+  /* interactive chrome has no meaning on paper */
+  .topbar,.fab-bar,.actions,.toast,.sheet-wrap,.find,.search-wrap,
+  .strip-wrap,.s2-cats-wrap,.g-days,.g-caption,.g-filter,.g-list,
+  .s-chev,.s2-chev,.p-btn,.s2-sched,.sheet-acts,.s2-foot{display:none !important;}
+
+  .print-only{display:block !important;}
+
+  /* animation-driven elements must be forced visible */
+  .card,.s2-block,.s2-card,.g-item,.p-card,.s-row,.s-panel,.s2-panel,
+  .m-status,.tag-live,.p-badge,.g-live,.s2-live,.m-remark{
+    opacity:1 !important;transform:none !important;}
+  .s2-panel,.s-panel,[hidden]{display:block !important;}
+
+  /* ── letterhead ── */
+  .head{background:#fff !important;color:#000 !important;text-align:left !important;
+    padding:0 0 10px !important;border-bottom:2.5px solid var(--accent) !important;
+    border-radius:0 !important;}
+  .clinic-name{font-size:21pt !important;color:var(--accent) !important;letter-spacing:-.02em !important;}
+  .clinic-address{justify-content:flex-start !important;color:#333 !important;
+    font-size:9.5pt !important;margin-top:6px !important;max-width:none !important;}
+  .clinic-phones{justify-content:flex-start !important;margin-top:8px !important;}
+  .clinic-phone{background:transparent !important;border:1px solid #bbb !important;
+    color:#000 !important;padding:2px 9px !important;font-size:9pt !important;}
+  .print-stamp{font-family:var(--mono);font-size:7.5pt;letter-spacing:.1em;
+    text-transform:uppercase;color:#888;margin:7px 0 14px !important;}
+
+  /* ── roster: two columns fit far more per page ── */
+  .roster{padding:0 !important;column-count:2;column-gap:7mm;}
+  .group,.p-group,.s2-group,.g-wrap{break-inside:auto;}
+  .card,.p-card,.g-item,.s2-block{
+    break-inside:avoid;page-break-inside:avoid;-webkit-column-break-inside:avoid;
+    width:100%;display:block;
+    border:1px solid #dcdcdc !important;border-radius:8px !important;
+    box-shadow:none !important;margin:0 0 6mm !important;padding:10px 12px !important;}
+
+  /* group headings shouldn't dangle at a column foot */
+  .group-title,.p-gtitle{break-after:avoid;page-break-after:avoid;
+    font-size:8pt !important;margin:0 0 7px !important;}
+
+  /* ── typography scaled for paper ── */
+  .card-id h4,.p-id h4,.g-id h4,.s2-name{font-size:12.5pt !important;line-height:1.2 !important;}
+  .m-cat{font-size:8.5pt !important;margin-top:4px !important;}
+  .m-deg{font-size:9pt !important;margin-top:4px !important;}
+  .m-hosp{font-size:9pt !important;margin-top:5px !important;}
+  .m-exp{font-size:7.5pt !important;margin-top:3px !important;}
+  .m-a1{font-size:8.5pt !important;margin-top:5px !important;}
+  .m-a2{font-size:8.5pt !important;margin-top:3px !important;}
+  .m-remark{font-size:8pt !important;padding:6px 8px !important;margin-top:8px !important;
+    border:1px solid var(--rule) !important;}
+  .m-status{font-size:8pt !important;margin-top:7px !important;}
+  .photo,.p-photo,.g-photo,.s2-photo,.s-photo{
+    box-shadow:none !important;border:1px solid #ddd !important;}
+  .photo{width:42px !important;height:42px !important;}
+  .p-photo,.g-photo{width:42px !important;height:42px !important;}
+
+  /* ── schedule table: the reason anyone saves this ── */
+  .sched{margin-top:9px !important;padding-top:8px !important;
+    border-top:1px solid #ddd !important;break-inside:avoid;}
+  .sched-h{font-size:7pt !important;margin-bottom:6px !important;color:#666 !important;}
+  .sched ul{gap:4px !important;}
+  .sched li{font-size:8.5pt !important;gap:6px !important;}
+  .time{font-size:8pt !important;}
+  .leader{border-bottom:1px dotted #ccc !important;}
+  /* "today" highlighting is meaningless on a printed sheet */
+  .row-today .day,.row-today .time,.row-live .day,.row-live .time{
+    color:#000 !important;font-weight:600 !important;}
+
+  /* ── silver: bands become bordered blocks, no negative margins ── */
+  .s2-block{margin:0 0 6mm !important;padding:12px 13px !important;
+    border-radius:10px !important;border:none !important;}
+  .s2-cat{font-size:9.5pt !important;margin-top:3px !important;}
+  .s2-card{margin-top:30px !important;padding:0 12px 12px !important;
+    box-shadow:none !important;border:1px solid rgba(0,0,0,.08) !important;}
+  .s2-exp{position:static !important;display:inline-block;margin:10px 0 4px !important;
+    padding:5px 11px !important;font-size:8.5pt !important;border-radius:6px !important;
+    max-width:100% !important;}
+  .s2-top{gap:11px !important;}
+  .s2-photo{width:56px !important;height:56px !important;margin-top:-26px !important;
+    box-shadow:0 0 0 4px #fff !important;}
+  .s2-lead{padding-top:10px !important;}
+  .s2-deg{font-size:11pt !important;}
+  .s2-a1{font-size:9pt !important;}
+  .s2-hosp{font-size:10pt !important;margin-top:9px !important;}
+  .s2-a2{font-size:9pt !important;}
+  .s2-panel{padding-top:0 !important;}
+
+  /* ── platinum / gold rails and badges stay, softened ── */
+  .p-rail{width:3px !important;}
+  .g-item::before{width:3px !important;}
+  .p-card,.g-item{padding-left:16px !important;}
+  .tag-live,.p-badge,.g-live,.s2-live{box-shadow:none !important;font-size:6.5pt !important;
+    padding:3px 7px !important;}
+  .g-print .g-item:first-child{margin-top:0 !important;}
+
+  /* ── visit block: a bordered footer card, full width under the columns ── */
+  .visit{column-span:all;background:#fff !important;color:#000 !important;
+    border:1px solid #dcdcdc !important;border-radius:8px !important;
+    padding:12px 14px !important;margin-top:4mm !important;break-inside:avoid;}
+  .visit h2{font-size:11pt !important;color:var(--accent) !important;}
+  .address{color:#333 !important;font-size:9pt !important;max-width:none !important;}
+  .maplink{background:transparent !important;border:1px solid #ddd !important;
+    padding:8px 10px !important;margin-top:10px !important;}
+  .mapthumb{background:#f2f2f2 !important;color:#555 !important;
+    width:28px !important;height:28px !important;}
+  .maplink b{font-size:9pt !important;color:#000 !important;}
+  .maplink em{color:#777 !important;}
+  .maplink .arrow{display:none !important;}
+  .facts{gap:22px !important;margin-top:12px !important;}
+  .facts dt{color:#777 !important;font-size:7pt !important;}
+  .facts dd{color:#000 !important;font-size:11pt !important;}
+  .note{color:#777 !important;font-size:7.5pt !important;margin-top:12px !important;
+    padding-top:9px !important;border-top:1px solid #e5e5e5 !important;}
+
+  .foot{background:#fff !important;color:#999 !important;padding:8px 0 0 !important;
+    border-top:1px solid #e5e5e5 !important;font-size:7pt !important;margin-top:4mm !important;}
+  .foot .dim{color:#bbb !important;}
 }
 `;
