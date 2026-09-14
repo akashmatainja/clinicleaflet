@@ -10,7 +10,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
    with the richest treatment on the highest tier:
 
      platinum  violet   · premium cards, schedule in a bottom sheet
-     silver    ocean    · editorial hairline accordion, tap to open
+     silver    ocean    · editorial hairline blocks, tap to hide schedule
      gold      terracotta · day tabs, one day's chambers at a time
      copper    green    · stacked cards, schedule printed inline
 
@@ -655,10 +655,11 @@ function CopperRoster({ groups, today, nowMins, imageOf }) {
 
 /* ==================================================================
    SILVER — tinted band per doctor, white card overlapping with the
-   avatar breaking its top edge, Schedule reveals the timings inline
+   avatar breaking its top edge, timings shown by default and the
+   Schedule button collapses them
 ==================================================================== */
 function SilverRoster({ groups, today, nowMins, imageOf }) {
-  const [open, setOpen] = useState(null);
+  const [hidden, setHidden] = useState(() => new Set());
   let n = 0; // alternates the band tone down the page
 
   return (
@@ -667,7 +668,7 @@ function SilverRoster({ groups, today, nowMins, imageOf }) {
         <div className="s2-group" key={cat}>
           {docs.map((doc) => {
             const st = statusOf(doc, today, nowMins);
-            const isOpen = open === doc.id;
+            const isOpen = !hidden.has(doc.id);
             const tone = n++ % 2 === 0 ? "s2-a" : "s2-b";
             const deg = degreesOf(doc);
 
@@ -704,8 +705,11 @@ function SilverRoster({ groups, today, nowMins, imageOf }) {
 
                   <div className="s2-foot">
                     <span className={`s2-status ${st.live ? "is-live" : ""}`}>{st.short}</span>
-                    <button className="s2-sched" onClick={() => setOpen(isOpen ? null : doc.id)}
-                            aria-expanded={isOpen}>
+                    <button className="s2-sched" onClick={() => setHidden((h) => {
+                      const next = new Set(h);
+                      if (isOpen) next.add(doc.id); else next.delete(doc.id);
+                      return next;
+                    })} aria-expanded={isOpen}>
                       {isOpen ? "Hide schedule" : "Schedule"}
                       <span className="s2-chev"><Chevron /></span>
                     </button>
