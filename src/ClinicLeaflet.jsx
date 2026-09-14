@@ -123,9 +123,8 @@ function clock(mins) {
   if (mins == null) return "";
   const h24 = Math.floor(mins / 60) % 24, m = mins % 60;
   const h = h24 % 12 === 0 ? 12 : h24 % 12;
-  return `${h}:${String(m).padStart(2, "0")} ${h24 < 12 ? "AM" : "PM"}`;
+  return `${h}${m ? `:${String(m).padStart(2, "0")}` : ""} ${h24 < 12 ? "AM" : "PM"}`;
 }
-const tidy = (mins) => clock(mins).replace(":00", "");
 
 function buildSlots(doctors) {
   const out = [];
@@ -158,13 +157,9 @@ function statusOf(doc, today, nowMins) {
   const next = todays.find((r) => r.start > nowMins);
   return {
     rows, live: !!live,
-    text: live ? "Sitting now — walk in"
-      : next ? `Here today from ${tidy(next.start)}`
-      : todays.length ? "Finished for today"
-      : `Sits ${rows.length} day${rows.length === 1 ? "" : "s"} a week`,
     short: live ? "Sitting now"
-      : next ? `Today ${tidy(next.start)}`
-      : todays.length ? "Done today" : `${rows.length}\u00d7 a week`,
+      : next ? `Today ${clock(next.start)}`
+      : todays.length ? "Done today" : "",
   };
 }
 
@@ -298,6 +293,15 @@ export default function ClinicLeaflet() {
     };
   }, []);
 
+  /* iOS Safari ignores the no-zoom viewport meta, so block gesture zoom here */
+  useEffect(() => {
+    const prevent = (e) => e.preventDefault();
+    ["gesturestart", "gesturechange", "gestureend"].forEach((ev) =>
+      document.addEventListener(ev, prevent, { passive: false }));
+    return () => ["gesturestart", "gesturechange", "gestureend"].forEach((ev) =>
+      document.removeEventListener(ev, prevent));
+  }, []);
+
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(""), 2200);
@@ -317,11 +321,6 @@ export default function ClinicLeaflet() {
   const searched = searchQuery.trim()
     ? visible.filter((d) => d.name.toLowerCase().includes(searchQuery.toLowerCase()))
     : visible;
-  const grouped = useMemo(() => {
-    const m = new Map();
-    searched.forEach((d) => { if (!m.has(d.category)) m.set(d.category, []); m.get(d.category).push(d); });
-    return [...m.entries()];
-  }, [searched]);
 
   const usedCats = useMemo(() => {
     const cats = data?.category || [];
@@ -507,15 +506,15 @@ export default function ClinicLeaflet() {
               {searched.length === 0 ? (
                 <p className="empty">No doctors match this filter.</p>
               ) : theme === "silver" ? (
-                <SilverRoster groups={grouped} today={today} nowMins={nowMins} imageOf={imageOf} />
+                <SilverRoster doctors={searched} today={today} nowMins={nowMins} imageOf={imageOf} />
               ) : theme === "gold" ? (
                 <GoldRoster doctors={searched} day={dayTab ?? today} setDay={setDayTab}
                             today={today} nowMins={nowMins} imageOf={imageOf} />
               ) : theme === "platinum" ? (
-                <PlatinumRoster groups={grouped} today={today} nowMins={nowMins}
+                <PlatinumRoster doctors={searched} today={today} nowMins={nowMins}
                                 imageOf={imageOf} onOpen={setModalDoc} />
               ) : (
-                <CopperRoster groups={grouped} today={today} nowMins={nowMins} imageOf={imageOf} />
+                <CopperRoster doctors={searched} today={today} nowMins={nowMins} imageOf={imageOf} />
               )}
             </section>
 
@@ -596,7 +595,7 @@ function DoctorMeta({ doc, catImage, withCategory = true }) {
 function ScheduleList({ rows, today, nowMins, label = "Chamber timings", className = "" }) {
   return (
     <div className={`sched ${className}`}>
-      <p className="sched-h">{label}</p>
+      <p className="sched-h"><CalendarIcon />{label}</p>
       <ul>
         {rows.map((r, i) => {
           const isToday = r.dayIndex === today;
@@ -605,7 +604,7 @@ function ScheduleList({ rows, today, nowMins, label = "Chamber timings", classNa
             <li key={i} className={`${isToday ? "row-today" : ""} ${live ? "row-live" : ""}`}>
               <span className="day">{r.day}</span>
               <i className="leader" />
-              <span className="time mono">{clock(r.start)} – {clock(r.end)}</span>
+              <span className="time">{clock(r.start)} – {clock(r.end)}</span>
             </li>
           );
         })}
@@ -615,41 +614,32 @@ function ScheduleList({ rows, today, nowMins, label = "Chamber timings", classNa
 }
 
 const Remark = ({ doc }) => (doc.remark ? <p className="m-remark">{cap(doc.remark)}</p> : null);
-const StatusLine = ({ st }) => <p className={`m-status ${st.live ? "is-live" : ""}`}>{st.text}</p>;
 
 /* ==================================================================
    COPPER — stacked cards, schedule inline
 ==================================================================== */
-function CopperRoster({ groups, today, nowMins, imageOf }) {
+function CopperRoster({ doctors, today, nowMins, imageOf }) {
   return (
-    <>
-      {groups.map(([cat, docs]) => (
-        <div className="group" key={cat}>
-          <h3 className="group-title">
-            <CatIcon name={cat} src={imageOf.get(cat)} size="xs" /><span>{cat}</span><i className="gline" />
-          </h3>
-          {docs.map((doc, i) => {
-            const st = statusOf(doc, today, nowMins);
-            return (
-              <article className={`card ${st.live ? "card--live" : ""}`} key={doc.id}
-                       style={{ animationDelay: `${Math.min(i, 6) * 50}ms` }}>
-                <div className="card-top">
-                  <Avatar doc={doc} className="photo" />
-                  <div className="card-id">
-                    <h4>{doc.name}</h4>
-                    <DoctorMeta doc={doc} catImage={imageOf.get(doc.category)} />
-                  </div>
-                  {st.live && <span className="tag-live">Now</span>}
-                </div>
-                <ScheduleList rows={st.rows} today={today} nowMins={nowMins} />
-                <Remark doc={doc} />
-                <StatusLine st={st} />
-              </article>
-            );
-          })}
-        </div>
-      ))}
-    </>
+    <div className="group">
+      {doctors.map((doc, i) => {
+        const st = statusOf(doc, today, nowMins);
+        return (
+          <article className={`card ${st.live ? "card--live" : ""}`} key={doc.id}
+                   style={{ animationDelay: `${Math.min(i, 6) * 50}ms` }}>
+            <div className="card-top">
+              <Avatar doc={doc} className="photo" />
+              <div className="card-id">
+                <h4>{doc.name}</h4>
+                <DoctorMeta doc={doc} catImage={imageOf.get(doc.category)} />
+              </div>
+              {st.live && <span className="tag-live">Now</span>}
+            </div>
+            <ScheduleList rows={st.rows} today={today} nowMins={nowMins} />
+            <Remark doc={doc} />
+          </article>
+        );
+      })}
+    </div>
   );
 }
 
@@ -658,69 +648,64 @@ function CopperRoster({ groups, today, nowMins, imageOf }) {
    avatar breaking its top edge, timings shown by default and the
    Schedule button collapses them
 ==================================================================== */
-function SilverRoster({ groups, today, nowMins, imageOf }) {
+function SilverRoster({ doctors, today, nowMins, imageOf }) {
   const [hidden, setHidden] = useState(() => new Set());
   let n = 0; // alternates the band tone down the page
 
   return (
-    <>
-      {groups.map(([cat, docs]) => (
-        <div className="s2-group" key={cat}>
-          {docs.map((doc) => {
-            const st = statusOf(doc, today, nowMins);
-            const isOpen = !hidden.has(doc.id);
-            const tone = n++ % 2 === 0 ? "s2-a" : "s2-b";
-            const deg = degreesOf(doc);
+    <div className="s2-group">
+      {doctors.map((doc) => {
+        const st = statusOf(doc, today, nowMins);
+        const isOpen = !hidden.has(doc.id);
+        const tone = n++ % 2 === 0 ? "s2-a" : "s2-b";
+        const deg = degreesOf(doc);
 
-            return (
-              <article className={`s2-block ${tone} ${st.live ? "is-live" : ""}`} key={doc.id}>
-                <div className="s2-hd">
-                  <h4 className="s2-name">{doc.name}</h4>
-                  {st.live && <span className="s2-live">Sitting now</span>}
+        return (
+          <article className={`s2-block ${tone} ${st.live ? "is-live" : ""}`} key={doc.id}>
+            <div className="s2-hd">
+              <h4 className="s2-name">{doc.name}</h4>
+              {st.live && <span className="s2-live">Sitting now</span>}
+            </div>
+            <p className="s2-cat">
+              <CatIcon name={doc.category} src={imageOf.get(doc.category)} size="xs" />
+              {doc.category}
+            </p>
+
+            <div className="s2-card">
+              {doc.experience ? <span className="s2-exp">{doc.experience}</span> : null}
+
+              <div className="s2-top">
+                <Avatar doc={doc} className="s2-photo" />
+                <div className="s2-lead">
+                  {deg.length > 0 && <p className="s2-deg">{deg.join(" · ")}</p>}
+                  {doc.additionalText_1 && <p className="s2-a1">{doc.additionalText_1}</p>}
                 </div>
-                <p className="s2-cat">
-                  <CatIcon name={doc.category} src={imageOf.get(doc.category)} size="xs" />
-                  {doc.category}
-                </p>
+              </div>
 
-                <div className="s2-card">
-                  {doc.experience ? <span className="s2-exp">{doc.experience}</span> : null}
+              {doc.hospital_name && <p className="s2-hosp">{doc.hospital_name}</p>}
+              {doc.additionalText_2 && <p className="s2-a2">{doc.additionalText_2}</p>}
+              <Remark doc={doc} />
 
-                  <div className="s2-top">
-                    <Avatar doc={doc} className="s2-photo" />
-                    <div className="s2-lead">
-                      {deg.length > 0 && <p className="s2-deg">{deg.join(" · ")}</p>}
-                      {doc.additionalText_1 && <p className="s2-a1">{doc.additionalText_1}</p>}
-                    </div>
-                  </div>
+              <div className="s2-panel" hidden={!isOpen}>
+                <ScheduleList rows={st.rows} today={today} nowMins={nowMins} />
+              </div>
 
-                  {doc.hospital_name && <p className="s2-hosp">{doc.hospital_name}</p>}
-                  {doc.additionalText_2 && <p className="s2-a2">{doc.additionalText_2}</p>}
-                  <Remark doc={doc} />
-
-                  <div className="s2-panel" hidden={!isOpen}>
-                    <ScheduleList rows={st.rows} today={today} nowMins={nowMins} />
-                    <StatusLine st={st} />
-                  </div>
-
-                  <div className="s2-foot">
-                    <span className={`s2-status ${st.live ? "is-live" : ""}`}>{st.short}</span>
-                    <button className="s2-sched" onClick={() => setHidden((h) => {
-                      const next = new Set(h);
-                      if (isOpen) next.add(doc.id); else next.delete(doc.id);
-                      return next;
-                    })} aria-expanded={isOpen}>
-                      {isOpen ? "Hide schedule" : "Schedule"}
-                      <span className="s2-chev"><Chevron /></span>
-                    </button>
-                  </div>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      ))}
-    </>
+              <div className="s2-foot">
+                {st.short ? <span className={`s2-status ${st.live ? "is-live" : ""}`}>{st.short}</span> : null}
+                <button className="s2-sched" onClick={() => setHidden((h) => {
+                  const next = new Set(h);
+                  if (isOpen) next.add(doc.id); else next.delete(doc.id);
+                  return next;
+                })} aria-expanded={isOpen}>
+                  {isOpen ? "Hide schedule" : "Schedule"}
+                  <span className="s2-chev"><Chevron /></span>
+                </button>
+              </div>
+            </div>
+          </article>
+        );
+      })}
+    </div>
   );
 }
 
@@ -778,7 +763,6 @@ function GoldRoster({ doctors, day, setDay, today, nowMins, imageOf }) {
                   </div>
                   <ScheduleList rows={st.rows} today={today} nowMins={nowMins} label="All chamber timings" />
                   <Remark doc={s.doc} />
-                  <StatusLine st={st} />
                 </div>
               </li>
             );
@@ -811,48 +795,38 @@ function GoldRoster({ doctors, day, setDay, today, nowMins, imageOf }) {
    PLATINUM — premium cards carrying every field except the week
    grid, which opens in a bottom sheet
 ==================================================================== */
-function PlatinumRoster({ groups, today, nowMins, imageOf, onOpen }) {
+function PlatinumRoster({ doctors, today, nowMins, imageOf, onOpen }) {
   return (
-    <>
-      {groups.map(([cat, docs]) => (
-        <div className="p-group" key={cat}>
-          <h3 className="p-gtitle">
-            <CatIcon name={cat} src={imageOf.get(cat)} size="xs" />
-            <span>{cat}</span>
-          </h3>
+    <div className="p-group">
+      {doctors.map((doc, i) => {
+        const st = statusOf(doc, today, nowMins);
+        return (
+          <article className={`p-card ${st.live ? "is-live" : ""}`} key={doc.id}
+                   style={{ animationDelay: `${Math.min(i, 6) * 45}ms` }}>
+            <span className="p-rail" aria-hidden="true" />
+            <div className="p-top">
+              <Avatar doc={doc} className="p-photo" />
+              <div className="p-id">
+                <h4>{doc.name}</h4>
+                <p className="m-cat"><CatIcon name={doc.category} src={imageOf.get(doc.category)} size="xs" />{doc.category}</p>
+              </div>
+              {st.live && <span className="p-badge">Now</span>}
+            </div>
 
-          {docs.map((doc, i) => {
-            const st = statusOf(doc, today, nowMins);
-            return (
-              <article className={`p-card ${st.live ? "is-live" : ""}`} key={doc.id}
-                       style={{ animationDelay: `${Math.min(i, 6) * 45}ms` }}>
-                <span className="p-rail" aria-hidden="true" />
-                <div className="p-top">
-                  <Avatar doc={doc} className="p-photo" />
-                  <div className="p-id">
-                    <h4>{doc.name}</h4>
-                    {/* <DoctorMeta doc={doc} catImage={imageOf.get(doc.category)} /> */}
-                  </div>
-                  {st.live && <span className="p-badge">Now</span>}
-                </div>
-
-                <Remark doc={doc} />
-                <div className="print-only">
-                  <DoctorMeta doc={doc} catImage={imageOf.get(doc.category)} />
-                  <ScheduleList rows={st.rows} today={today} nowMins={nowMins} />
-                </div>
-                <div className="p-foot">
-                  <StatusLine st={st} />
-                  <button className="p-btn" onClick={() => onOpen(doc)}>
-                    <CalendarIcon /> Chamber timings
-                  </button>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      ))}
-    </>
+            <Remark doc={doc} />
+            <div className="print-only">
+              <DoctorMeta doc={doc} catImage={imageOf.get(doc.category)} withCategory={false} />
+              <ScheduleList rows={st.rows} today={today} nowMins={nowMins} />
+            </div>
+            <div className="p-foot">
+              <button className="p-btn" onClick={() => onOpen(doc)}>
+                <CalendarIcon /> Chamber timings
+              </button>
+            </div>
+          </article>
+        );
+      })}
+    </div>
   );
 }
 
@@ -874,7 +848,6 @@ function ScheduleSheet({ doc, today, nowMins, tel, catImage, onClose }) {
 
         <ScheduleList rows={st.rows} today={today} nowMins={nowMins} />
         <Remark doc={doc} />
-        <StatusLine st={st} />
 
         <div className="sheet-acts">
           <button className="sheet-close" onClick={onClose}>Close</button>
@@ -1050,7 +1023,7 @@ body{margin:0;padding:0;}
   --display:'Instrument Sans',system-ui,sans-serif;
   --mono:'DM Mono',ui-monospace,monospace;
   background:#E9EFEE; font-family:var(--body); color:var(--ink);
-  -webkit-font-smoothing:antialiased; min-height:100%;
+  -webkit-font-smoothing:antialiased; min-height:100%;touch-action:pan-x pan-y;
 }
 /* platinum — violet, the flagship */
 .dd.theme-platinum{
@@ -1182,7 +1155,8 @@ body{margin:0;padding:0;}
 .sk-l1{width:64%;height:18px;border-radius:6px;}
 .sk-l2{width:44%;height:12px;margin-top:9px;}
 .sk-l3{width:78%;height:12px;margin-top:8px;}
-.sk-sched{margin-top:16px;padding-top:14px;border-top:1px solid var(--rule);}
+.sk-sched{margin-top:16px;padding:12px 14px;background:var(--tint);
+  border:1px solid var(--rule);border-left:3px solid var(--accent);border-radius:12px;}
 .sk-schedh{width:96px;height:10px;border-radius:4px;margin-bottom:12px !important;}
 .sk-row{display:flex;align-items:center;gap:9px;margin-top:11px;}
 .sk-day{width:74px;height:12px;flex:0 0 auto;}
@@ -1265,20 +1239,22 @@ body{margin:0;padding:0;}
 .m-a2{margin-top:5px !important;font-size:12.5px !important;color:var(--muted) !important;line-height:1.45;}
 .m-remark{margin-top:14px !important;font-size:12.5px !important;color:var(--accent) !important;line-height:1.5 !important;padding:9px 11px !important;
   background:var(--tint) !important;border-radius:10px !important;font-weight:500 !important;}
-.m-status{margin-top:12px !important;font-size:12.5px !important;font-weight:600 !important;color:var(--muted) !important;
-  animation:tagIn .35s cubic-bezier(.2,.75,.3,1) both;}
-.m-status.is-live{color:var(--live);}
 @keyframes tagIn{from{opacity:0;transform:scale(.9);}to{opacity:1;transform:none;}}
 
-.sched{margin-top:16px;padding-top:14px;border-top:1px solid var(--rule);}
-.sched-h{font-size:10.5px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;
-  color:var(--muted);margin-bottom:10px !important;}
-.sched ul{display:flex;flex-direction:column;gap:9px;}
-.sched li{display:flex;align-items:baseline;gap:9px;font-size:13.5px;}
-.day{font-weight:500;white-space:nowrap;transition:color .5s ease;}
+.sched{margin-top:16px;padding:12px 14px;background:var(--tint);
+  border:1px solid var(--rule);border-left:3px solid var(--accent);border-radius:12px;}
+.sched-h{display:flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;
+  letter-spacing:.13em;text-transform:uppercase;color:var(--accent);margin-bottom:10px !important;}
+.sched-h svg{flex:0 0 auto;}
+.sched ul{display:flex;flex-direction:column;gap:7px;}
+.sched li{display:flex;align-items:baseline;gap:9px;font-size:13.5px;
+  padding:3px 8px;margin:0 -8px;border-radius:7px;}
+.day{font-weight:600;white-space:nowrap;transition:color .5s ease;}
 .leader{flex:1;height:1px;border-bottom:1px dotted var(--rule);transform:translateY(-3px);}
-.time{white-space:nowrap;font-size:12.5px;transition:color .5s ease;}
+.time{white-space:nowrap;font-size:12.5px;font-weight:700;transition:color .5s ease;}
+.row-today{background:var(--card);box-shadow:0 1px 3px rgba(16,26,40,.08);}
 .row-today .day,.row-today .time{color:var(--accent);font-weight:700;}
+.row-live{background:var(--live-soft);}
 .row-live .day,.row-live .time{color:var(--live);font-weight:700;}
 
 /* ═══════════ COPPER ═══════════ */
@@ -1349,7 +1325,7 @@ body{margin:0;padding:0;}
 .s2-status{font-size:11.5px;font-weight:600;color:var(--muted);}
 .s2-status.is-live{color:var(--live);}
 .s2-sched{display:inline-flex;align-items:center;gap:6px;font-size:16px;font-weight:800;
-  letter-spacing:-.01em;color:#C08A1E;cursor:pointer;padding:4px 0;}
+  letter-spacing:-.01em;color:#C08A1E;cursor:pointer;padding:4px 0;margin-left:auto;}
 .s2-chev{display:grid;place-items:center;transition:transform .3s;}
 .s2-sched[aria-expanded="true"] .s2-chev{transform:rotate(180deg);}
 
@@ -1467,8 +1443,7 @@ body{margin:0;padding:0;}
   animation:tagIn .35s cubic-bezier(.2,.75,.3,1) both;}
 .p-foot{display:flex;align-items:center;gap:12px;margin-top:14px;padding-top:13px;
   border-top:1px solid var(--rule);}
-.p-foot .m-status{margin-top:0 !important;flex:1;min-width:0;font-size:12px !important;}
-.p-btn{position:relative;flex:0 0 auto;display:inline-flex;align-items:center;gap:8px;padding:11px 18px;
+.p-btn{position:relative;flex:0 0 auto;display:inline-flex;align-items:center;gap:8px;padding:11px 18px;margin-left:auto;
   border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent-2)) !important;
   color:#fff !important;font-size:12.5px !important;font-weight:700 !important;letter-spacing:.01em;cursor:pointer;overflow:hidden;
   transition:transform .18s cubic-bezier(.2,.75,.3,1),box-shadow .25s;
@@ -1565,7 +1540,7 @@ body{margin:0;padding:0;}
 /* ---------- reduced motion ---------- */
 @media (prefers-reduced-motion:reduce){
   .dd *{transition:none !important;}
-  .card,.s-row,.g-item,.p-card,.tag-live,.g-live,.p-badge,.m-status,.toast,.sheet,.sheet-bd,.s-panel{
+  .card,.s-row,.g-item,.p-card,.tag-live,.g-live,.p-badge,.toast,.sheet,.sheet-bd,.s-panel{
     animation:none !important;opacity:1 !important;transform:none !important;}
   .toast{transform:translateX(-50%) !important;}
   .pip--open{animation:none !important;}
@@ -1597,7 +1572,7 @@ body{margin:0;padding:0;}
 
   /* animation-driven elements must be forced visible */
   .card,.s2-block,.s2-card,.g-item,.p-card,.s-row,.s-panel,.s2-panel,
-  .m-status,.tag-live,.p-badge,.g-live,.s2-live,.m-remark{
+  .tag-live,.p-badge,.g-live,.s2-live,.m-remark{
     opacity:1 !important;transform:none !important;}
   .s2-panel,.s-panel,[hidden]{display:block !important;}
 
@@ -1637,18 +1612,19 @@ body{margin:0;padding:0;}
   .m-a2{font-size:8.5pt !important;margin-top:3px !important;}
   .m-remark{font-size:8pt !important;padding:6px 8px !important;margin-top:8px !important;
     border:1px solid var(--rule) !important;}
-  .m-status{font-size:8pt !important;margin-top:7px !important;}
   .photo,.p-photo,.g-photo,.s2-photo,.s-photo{
     box-shadow:none !important;border:1px solid #ddd !important;}
   .photo{width:42px !important;height:42px !important;}
   .p-photo,.g-photo{width:42px !important;height:42px !important;}
 
   /* ── schedule table: the reason anyone saves this ── */
-  .sched{margin-top:9px !important;padding-top:8px !important;
-    border-top:1px solid #ddd !important;break-inside:avoid;}
+  .sched{margin-top:9px !important;padding:8px 0 0 !important;background:none !important;
+    border:none !important;border-top:1px solid #ddd !important;break-inside:avoid;}
   .sched-h{font-size:7pt !important;margin-bottom:6px !important;color:#666 !important;}
+  .sched-h svg{display:none !important;}
   .sched ul{gap:4px !important;}
-  .sched li{font-size:8.5pt !important;gap:6px !important;}
+  .sched li{font-size:8.5pt !important;gap:6px !important;padding:0 !important;margin:0 !important;}
+  .row-today,.row-live{background:none !important;box-shadow:none !important;}
   .time{font-size:8pt !important;}
   .leader{border-bottom:1px dotted #ccc !important;}
   /* "today" highlighting is meaningless on a printed sheet */
